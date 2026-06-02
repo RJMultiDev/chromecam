@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>视频展台</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 全屏主内容区 -->
+    <div id="main-content">
+      <!-- 摄像头预览 -->
+      <div id="camera-container" class="content-panel active">
+        <video id="video" autoplay playsinline></video>
+        <div class="placeholder">
+          <svg viewBox="0 0 24 24" width="64" height="64" opacity="0.3"><path d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z" fill="currentColor"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill="currentColor"/></svg>
+          <span>启动摄像头中…</span>
+        </div>
+        <canvas id="overlay" class="overlay-canvas"></canvas>
+      </div>
+      <!-- 已拍图片展示 -->
+      <div id="image-container" class="content-panel">
+        <img id="capturedImage" src="" alt="已拍摄照片">
+        <canvas id="imageOverlay" class="overlay-canvas"></canvas>
+        <div id="photoInfo" class="photo-info"></div>
+      </div>
+    </div>
+
+    <!-- 底部居中浮动批注栏 -->
+    <div id="annot-float-bar">
+      <div class="annot-bar-inner">
+        <!-- 左侧工具组 -->
+        <div class="annot-group">
+          <button id="btnPointer" class="annot-btn" title="鼠标模式" data-tool="pointer">🖱️</button>
+          <button id="btnPen" class="annot-btn active" title="画笔" data-tool="pen">✏️</button>
+          <button id="btnHighlighter" class="annot-btn" title="荧光笔" data-tool="highlighter">🖍️</button>
+          <button id="btnEraser" class="annot-btn" title="橡皮擦" data-tool="eraser">🧹</button>
+          <span class="annot-divider"></span>
+          <button id="btnRotate" class="annot-btn" title="旋转 (Ctrl+R)" data-tool="rotate">🔄 <span id="rotateLabel" class="rotate-label">0°</span></button>
+        </div>
+
+        <span class="annot-divider"></span>
+
+        <!-- 设置触发按钮（显示当前工具图标，点击弹出设置） -->
+        <button id="btnToolSettings" class="annot-btn tool-settings-trigger" title="工具设置">⚙️</button>
+
+        <span class="annot-divider"></span>
+
+        <!-- 右侧操作组：拍照 + 撤销/重做/清除/下载 -->
+        <div class="annot-group">
+          <button id="btnSnapshot" class="annot-btn snapshot-btn" title="拍照 (空格)">📸</button>
+          <button id="btnBackCam" class="annot-btn" title="返回摄像头" style="display:none">📷</button>
+          <button id="btnImage" class="annot-btn" title="选择图片">🖼️</button>
+          <span class="annot-divider"></span>
+          <button id="btnUndo" class="annot-btn" title="撤销 (Ctrl+Z)" disabled>↩️</button>
+          <button id="btnRedo" class="annot-btn" title="重做 (Ctrl+Y)" disabled>↪️</button>
+          <button id="btnClearAll" class="annot-btn" title="清除批注">🗑️</button>
+          <button id="btnDownload" class="annot-btn" title="下载" disabled>⬇️</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工具设置弹出面板（颜色 + 粗细） -->
+    <div id="toolSettingsPopup" class="tool-settings-popup hidden">
+      <div class="tool-settings-section">
+        <div class="tool-settings-label">颜色</div>
+        <div class="color-picker">
+          <button class="color-btn" data-color="#e74c3c" style="background:#e74c3c" title="红"></button>
+          <button class="color-btn" data-color="#f39c12" style="background:#f39c12" title="橙"></button>
+          <button class="color-btn" data-color="#f1c40f" style="background:#f1c40f" title="黄"></button>
+          <button class="color-btn" data-color="#2ecc71" style="background:#2ecc71" title="绿"></button>
+          <button class="color-btn active" data-color="#3498db" style="background:#3498db" title="蓝"></button>
+          <button class="color-btn" data-color="#9b59b6" style="background:#9b59b6" title="紫"></button>
+          <button class="color-btn" data-color="#000000" style="background:#000000" title="黑"></button>
+        </div>
+      </div>
+      <div class="tool-settings-divider"></div>
+      <div class="tool-settings-section">
+        <div class="tool-settings-label">粗细</div>
+        <div class="size-picker">
+          <button class="size-btn" data-size="2" title="细">—</button>
+          <button class="size-btn active" data-size="5" title="中">—</button>
+          <button class="size-btn" data-size="10" title="粗">—</button>
+          <button class="size-btn" data-size="18" title="极粗">—</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右下角图片库 FAB -->
+    <div id="gallery-fab">
+      <button id="btnGallery" class="gallery-fab-btn" title="照片库">
+        <span class="gallery-badge" id="galleryBadge">0</span>
+        🖼️
+      </button>
+      <div id="gallery-popup" class="gallery-popup hidden">
+        <div class="gallery-popup-header">
+          <span>照片库</span>
+          <div class="gallery-popup-actions">
+            <button id="btnGalleryDeleteAll" class="gallery-clear-btn" title="删除全部">🗑️</button>
+            <button id="btnGalleryClose" class="gallery-close-btn">✕</button>
+          </div>
+        </div>
+        <div id="galleryThumbnails" class="gallery-thumb-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隐藏的文件选择器 -->
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        console.log('SW 注册成功:', reg.scope);
+      }).catch((err) => {
+        console.log('SW 注册失败:', err);
+      });
+    }
+  </script>
+</body>
+</html>

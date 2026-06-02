@@ -1,0 +1,32 @@
+{
+  "name": "视频展台",
+  "short_name": "展台",
+  "description": "ChromeOS 视频展台应用 - 支持拍照、批注、图片选择等功能",
+  "start_url": "app.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#3498db",
+  "icons": [
+    {
+      "src": "icons/icon16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["education", "photography"],
+  "lang": "zh-CN",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "offline_enabled": true
+}
