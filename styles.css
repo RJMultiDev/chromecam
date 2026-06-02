@@ -78,7 +78,36 @@ body {
   height: 100%;
   object-fit: contain;
   transition: transform 0.3s ease;
+  touch-action: none;
 }
+
+/* 缩放包装层 */
+.zoom-wrapper {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
+  touch-action: none;
+}
+
+/* 缩放比例指示器 */
+.zoom-indicator {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  padding: 4px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  z-index: 15;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.zoom-indicator.hidden { opacity: 0; }
 
 .overlay-canvas {
   position: absolute;

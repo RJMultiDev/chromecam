@@ -37,6 +37,12 @@ class AppState {
     this.lastY = 0;
     this.idCounter = 0;
     this.rotateDeg = 0;            // 全局旋转角度
+    // 图片缩放状态
+    this.zoom = 1;                 // 当前缩放比
+    this.zoomOriginX = 0;          // 缩放原点 X（相对于容器）
+    this.zoomOriginY = 0;
+    // 摄像头批注笔画 (不绑定到某张照片)
+    this.cameraStrokes = [];
   }
 
   // ===== localStorage 持久化 =====
@@ -207,8 +213,8 @@ class AnnotationEngine {
 
   startDraw(e) {
     if (this.state.annotationMode === 'pointer') return;
-    if (!this.state.currentPhoto) return;
-    if (this.state.isCameraMode) return;
+    if (!this.state.currentPhoto && this.state.annotationMode !== 'eraser'
+        && !this.state.isCameraMode) return;
     if (this.state.annotationMode === 'eraser') {
       this.startErase(e);
       return;
@@ -264,7 +270,11 @@ class AnnotationEngine {
     }
     this.state.isDrawing = false;
     if (this.currentStroke && this.currentStroke.points.length > 0) {
-      this.state.addStroke(this.currentStroke);
+      if (this.state.isCameraMode) {
+        this.state.cameraStrokes.push(this.currentStroke);
+      } else {
+        this.state.addStroke(this.currentStroke);
+      }
     }
     this.currentStroke = null;
   }
@@ -331,6 +341,26 @@ class AnnotationEngine {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+    // 摄像头模式：绘制摄像头批注
+    if (this.state.isCameraMode) {
+      for (const stroke of this.state.cameraStrokes) {
+        if (stroke.points.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.strokeStyle = stroke.color;
+        ctx.globalAlpha = stroke.type === 'highlighter' ? 0.3 : 1;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      return;
+    }
+
     const photo = this.state.currentPhoto;
     if (!photo) return;
 
@@ -361,6 +391,11 @@ class AnnotationEngine {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+
+  clearCameraStrokes() {
+    this.state.cameraStrokes = [];
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 }
 
@@ -539,13 +574,16 @@ class DocCameraApp {
       this.selectPhoto(idx);
       this.galleryPopup.classList.add('hidden');
     });
+
+    // 图片容器触屏缩放 (捏合手势)
+    this.setupPinchZoom();
   }
 
   setupDrawingEvents(canvas, engine) {
     canvas.addEventListener('mousedown', (e) => {
       if (this.state.annotationMode === 'pointer') return;
-      if (!this.state.currentPhoto && this.state.annotationMode !== 'eraser') return;
-      if (this.state.isCameraMode) return;
+      if (!this.state.currentPhoto && this.state.annotationMode !== 'eraser'
+          && !this.state.isCameraMode) return;
       engine.startDraw(e);
     });
 
@@ -565,8 +603,8 @@ class DocCameraApp {
 
     canvas.addEventListener('touchstart', (e) => {
       if (this.state.annotationMode === 'pointer') return;
-      if (!this.state.currentPhoto && this.state.annotationMode !== 'eraser') return;
-      if (this.state.isCameraMode) return;
+      if (!this.state.currentPhoto && this.state.annotationMode !== 'eraser'
+          && !this.state.isCameraMode) return;
       engine.startDraw(e);
     }, { passive: false });
 
@@ -579,6 +617,84 @@ class DocCameraApp {
     canvas.addEventListener('touchend', (e) => {
       engine.endDraw(e);
     });
+  }
+
+  // ===== 触屏缩放 (捏合手势) =====
+  setupPinchZoom() {
+    const wrapper = document.getElementById('zoomWrapper');
+    if (!wrapper) return;
+    let lastDist = 0;
+    let lastCX = 0, lastCY = 0;
+    let isPinching = false;
+
+    wrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      isPinching = true;
+      const t1 = e.touches[0], t2 = e.touches[1];
+      lastDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      lastCX = (t1.clientX + t2.clientX) / 2;
+      lastCY = (t1.clientY + t2.clientY) / 2;
+    }, { passive: false });
+
+    wrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length < 2 || !isPinching) return;
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const scale = dist / lastDist;
+      this.applyZoom(scale);
+      lastDist = dist;
+    }, { passive: false });
+
+    wrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) { isPinching = false; }
+    });
+
+    // 双击重置缩放
+    wrapper.addEventListener('dblclick', (e) => {
+      this.resetZoom();
+    });
+  }
+
+  applyZoom(scale) {
+    const s = this.state;
+    if (s.isCameraMode) return;
+    let newZoom = s.zoom * scale;
+    newZoom = Math.max(1, Math.min(8, newZoom));
+    if (newZoom === s.zoom) return;
+    s.zoom = newZoom;
+    this.updateZoomTransform();
+    this.showZoomIndicator();
+  }
+
+  resetZoom() {
+    this.state.zoom = 1;
+    this.updateZoomTransform();
+    this.showZoomIndicator();
+  }
+
+  updateZoomTransform() {
+    const wrapper = document.getElementById('zoomWrapper');
+    if (!wrapper) return;
+    const z = this.state.zoom;
+    if (z === 1) {
+      wrapper.style.transform = '';
+    } else {
+      wrapper.style.transform = `scale(${z})`;
+    }
+    wrapper.dataset.zoom = z;
+  }
+
+  showZoomIndicator() {
+    const el = document.getElementById('zoomIndicator');
+    if (!el) return;
+    el.textContent = Math.round(this.state.zoom * 100) + '%';
+    el.classList.remove('hidden');
+    clearTimeout(this._zoomIndicatorTimer);
+    this._zoomIndicatorTimer = setTimeout(() => {
+      el.classList.add('hidden');
+    }, 1500);
   }
 
   handleKeydown(e) {
@@ -691,11 +807,14 @@ class DocCameraApp {
     this.imageContainer.classList.remove('active');
     this.btnBackCam.style.display = 'none';
 
-    // 摄像头模式下禁用 overlay canvas 的绘制事件
-    this.overlay.style.pointerEvents = 'none';
+    // 摄像头模式：根据工具决定 overlay 是否可交互
+    const canDraw = this.state.annotationMode !== 'pointer';
+    this.overlay.style.pointerEvents = canDraw ? 'auto' : 'none';
     this.imageOverlay.style.pointerEvents = 'none';
 
     this.currentEngine = this.overlayEngine;
+    // 清理摄像头画板残留
+    this.overlayEngine.clearCameraStrokes();
   }
 
   switchToCamera() {
@@ -722,6 +841,37 @@ class DocCameraApp {
     canvas.height = this.video.videoHeight || 720;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+
+    // 合并摄像头批注（如果有）
+    const camStrokes = this.state.cameraStrokes;
+    if (camStrokes.length > 0) {
+      const overlayW = this.overlay.width;
+      const overlayH = this.overlay.height;
+      const scaleX = canvas.width / overlayW;
+      const scaleY = canvas.height / overlayH;
+      for (const stroke of camStrokes) {
+        if (stroke.points.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(
+          (stroke.points[0].x * scaleX),
+          (stroke.points[0].y * scaleY)
+        );
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(
+            (stroke.points[i].x * scaleX),
+            (stroke.points[i].y * scaleY)
+          );
+        }
+        ctx.strokeStyle = stroke.color;
+        ctx.globalAlpha = stroke.type === 'highlighter' ? 0.3 : 1;
+        ctx.lineWidth = stroke.size * (scaleX + scaleY) / 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
     // 添加到照片列表
@@ -949,9 +1099,13 @@ class DocCameraApp {
       if (tool === 'pointer') c.classList.add('pointer-mode');
     });
 
-    // 更新 imageOverlay 的 pointer-events（仅图片模式下有效）
-    if (!this.state.isCameraMode) {
+    // 更新 overlay 的 pointer-events（摄像头模式用 overlay，图片模式用 imageOverlay）
+    if (this.state.isCameraMode) {
+      this.overlay.style.pointerEvents = tool === 'pointer' ? 'none' : 'auto';
+      this.imageOverlay.style.pointerEvents = 'none';
+    } else {
       this.imageOverlay.style.pointerEvents = tool === 'pointer' ? 'none' : 'auto';
+      this.overlay.style.pointerEvents = 'none';
     }
   }
 

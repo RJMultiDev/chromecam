@@ -22,9 +22,12 @@
       </div>
       <!-- 已拍图片展示 -->
       <div id="image-container" class="content-panel">
-        <img id="capturedImage" src="" alt="已拍摄照片">
+        <div id="zoomWrapper" class="zoom-wrapper" data-zoom="1">
+          <img id="capturedImage" src="" alt="已拍摄照片">
+        </div>
         <canvas id="imageOverlay" class="overlay-canvas"></canvas>
         <div id="photoInfo" class="photo-info"></div>
+        <div id="zoomIndicator" class="zoom-indicator hidden">100%</div>
       </div>
     </div>
 
