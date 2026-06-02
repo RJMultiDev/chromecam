@@ -1,32 +1,78 @@
 {
-  "name": "视频展台",
-  "short_name": "展台",
-  "description": "ChromeOS 视频展台应用 - 支持拍照、批注、图片选择等功能",
-  "start_url": "app.html",
-  "scope": ".",
+  "name": "视频展台 - 摄像头拍照与批注",
+  "short_name": "视频展台",
+  "description": "ChromeOS 风格视频展台 — 支持摄像头拍照、图片选择、画笔/荧光笔/橡皮擦批注、撤销/重做、照片库管理",
+  "start_url": "/?source=pwa",
+  "id": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay"],
   "background_color": "#1a1a2e",
   "theme_color": "#3498db",
+  "lang": "zh-CN",
+  "orientation": "any",
+  "categories": ["education", "photography", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icons/icon16.png",
-      "sizes": "16x16",
-      "type": "image/png"
+      "src": "icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     },
     {
-      "src": "icons/icon48.png",
-      "sizes": "48x48",
-      "type": "image/png"
+      "src": "icons/icon192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icons/icon512.png",
+      "type": "image/png",
+      "sizes": "512x512"
     },
     {
       "src": "icons/icon128.png",
-      "sizes": "128x128",
-      "type": "image/png"
+      "type": "image/png",
+      "sizes": "128x128"
+    },
+    {
+      "src": "icons/icon48.png",
+      "type": "image/png",
+      "sizes": "48x48"
+    },
+    {
+      "src": "icons/icon16.png",
+      "type": "image/png",
+      "sizes": "16x16"
     }
   ],
-  "categories": ["education", "photography"],
-  "lang": "zh-CN",
-  "orientation": "any",
-  "prefer_related_applications": false,
-  "offline_enabled": true
+  "shortcuts": [
+    {
+      "name": "拍照",
+      "short_name": "拍照",
+      "description": "打开摄像头并拍照",
+      "url": "/?source=pwa&action=snapshot",
+      "icons": [{ "src": "icons/icon128.png", "sizes": "128x128" }]
+    },
+    {
+      "name": "照片库",
+      "short_name": "图库",
+      "description": "查看已拍摄和保存的照片",
+      "url": "/?source=pwa&action=gallery",
+      "icons": [{ "src": "icons/icon128.png", "sizes": "128x128" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/screenshot-main.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide",
+      "label": "视频展台主界面 — 摄像头预览与批注工具栏"
+    }
+  ],
+  "offline_enabled": true,
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
 }
