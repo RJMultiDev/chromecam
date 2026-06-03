@@ -13,19 +13,21 @@
     <div id="main-content">
       <!-- 摄像头预览 -->
       <div id="camera-container" class="content-panel active">
-        <video id="video" autoplay playsinline></video>
+        <div id="cameraZoomWrapper" class="zoom-wrapper" data-zoom="1">
+          <video id="video" autoplay playsinline></video>
+          <canvas id="overlay" class="overlay-canvas"></canvas>
+        </div>
         <div class="placeholder">
           <svg viewBox="0 0 24 24" width="64" height="64" opacity="0.3"><path d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z" fill="currentColor"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill="currentColor"/></svg>
           <span>启动摄像头中…</span>
         </div>
-        <canvas id="overlay" class="overlay-canvas"></canvas>
       </div>
       <!-- 已拍图片展示 -->
       <div id="image-container" class="content-panel">
         <div id="zoomWrapper" class="zoom-wrapper" data-zoom="1">
           <img id="capturedImage" src="" alt="已拍摄照片">
+          <canvas id="imageOverlay" class="overlay-canvas"></canvas>
         </div>
-        <canvas id="imageOverlay" class="overlay-canvas"></canvas>
         <div id="photoInfo" class="photo-info"></div>
         <div id="zoomIndicator" class="zoom-indicator hidden">100%</div>
       </div>

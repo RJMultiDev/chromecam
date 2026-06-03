@@ -224,10 +224,13 @@ class AnnotationEngine {
     this.state.lastX = pos.x;
     this.state.lastY = pos.y;
 
+    // 保存当前 zoom 到 stroke，后续渲染时用
+    const zoom = this.state.zoom;
     this.currentStroke = {
       type: this.state.annotationMode,
       color: this.state.currentColor,
       size: this.state.currentSize,
+      zoom: zoom,                    // 创建时的缩放比
       points: [{ x: pos.x, y: pos.y }]
     };
   }
@@ -243,15 +246,27 @@ class AnnotationEngine {
     const pos = this.getPos(e);
     const ctx = this.ctx;
     const stroke = this.currentStroke;
+    const prev = stroke.points[stroke.points.length - 1];
     stroke.points.push({ x: pos.x, y: pos.y });
 
+    // 中点贝塞尔平滑 — 用前一点和当前点的中点作为控制点
+    const midX = (prev.x + pos.x) / 2;
+    const midY = (prev.y + pos.y) / 2;
+
     ctx.beginPath();
-    ctx.moveTo(this.state.lastX, this.state.lastY);
-    ctx.lineTo(pos.x, pos.y);
+    if (stroke.points.length === 2) {
+      ctx.moveTo(prev.x, prev.y);
+      ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+    } else {
+      ctx.moveTo(stroke.points[stroke.points.length - 3].x,
+                 stroke.points[stroke.points.length - 3].y);
+      ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+    }
 
     ctx.strokeStyle = stroke.color;
     ctx.globalAlpha = stroke.type === 'highlighter' ? 0.3 : 1;
-    ctx.lineWidth = stroke.size;
+    // 除以 zoom 保持新笔迹的视觉绝对粗细不变
+    ctx.lineWidth = stroke.size / stroke.zoom;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -345,11 +360,17 @@ class AnnotationEngine {
     if (this.state.isCameraMode) {
       for (const stroke of this.state.cameraStrokes) {
         if (stroke.points.length < 2) continue;
+        const pts = stroke.points;
         ctx.beginPath();
-        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-        for (let i = 1; i < stroke.points.length; i++) {
-          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        ctx.moveTo(pts[0].x, pts[0].y);
+        // 中点贝塞尔平滑插值
+        for (let i = 1; i < pts.length; i++) {
+          const midX = (pts[i - 1].x + pts[i].x) / 2;
+          const midY = (pts[i - 1].y + pts[i].y) / 2;
+          ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, midX, midY);
         }
+        // 最后一段画到终点
+        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
         ctx.strokeStyle = stroke.color;
         ctx.globalAlpha = stroke.type === 'highlighter' ? 0.3 : 1;
         ctx.lineWidth = stroke.size;
@@ -366,27 +387,23 @@ class AnnotationEngine {
 
     for (const stroke of photo.strokes) {
       if (stroke.points.length < 2) continue;
+      const pts = stroke.points;
 
       ctx.beginPath();
-      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-
-      for (let i = 1; i < stroke.points.length; i++) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      ctx.moveTo(pts[0].x, pts[0].y);
+      // 中点贝塞尔平滑插值
+      for (let i = 1; i < pts.length; i++) {
+        const midX = (pts[i - 1].x + pts[i].x) / 2;
+        const midY = (pts[i - 1].y + pts[i].y) / 2;
+        ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, midX, midY);
       }
+      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
-      if (stroke.type === 'highlighter') {
-        ctx.strokeStyle = stroke.color;
-        ctx.globalAlpha = 0.3;
-        ctx.lineWidth = stroke.size;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-      } else {
-        ctx.strokeStyle = stroke.color;
-        ctx.globalAlpha = 1;
-        ctx.lineWidth = stroke.size;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-      }
+      ctx.strokeStyle = stroke.color;
+      ctx.globalAlpha = stroke.type === 'highlighter' ? 0.3 : 1;
+      ctx.lineWidth = stroke.size;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
       ctx.stroke();
       ctx.globalAlpha = 1;
@@ -621,10 +638,15 @@ class DocCameraApp {
 
   // ===== 触屏缩放 (捏合手势) =====
   setupPinchZoom() {
-    const wrapper = document.getElementById('zoomWrapper');
+    // 摄像头 & 图片两个 wrapper 共享相同 zoom
+    this._setupZoomOnWrapper('cameraZoomWrapper');
+    this._setupZoomOnWrapper('zoomWrapper');
+  }
+
+  _setupZoomOnWrapper(id) {
+    const wrapper = document.getElementById(id);
     if (!wrapper) return;
     let lastDist = 0;
-    let lastCX = 0, lastCY = 0;
     let isPinching = false;
 
     wrapper.addEventListener('touchstart', (e) => {
@@ -633,8 +655,6 @@ class DocCameraApp {
       isPinching = true;
       const t1 = e.touches[0], t2 = e.touches[1];
       lastDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      lastCX = (t1.clientX + t2.clientX) / 2;
-      lastCY = (t1.clientY + t2.clientY) / 2;
     }, { passive: false });
 
     wrapper.addEventListener('touchmove', (e) => {
@@ -642,8 +662,7 @@ class DocCameraApp {
       e.preventDefault();
       const t1 = e.touches[0], t2 = e.touches[1];
       const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const scale = dist / lastDist;
-      this.applyZoom(scale);
+      this.applyZoom(dist / lastDist);
       lastDist = dist;
     }, { passive: false });
 
@@ -659,7 +678,6 @@ class DocCameraApp {
 
   applyZoom(scale) {
     const s = this.state;
-    if (s.isCameraMode) return;
     let newZoom = s.zoom * scale;
     newZoom = Math.max(1, Math.min(8, newZoom));
     if (newZoom === s.zoom) return;
@@ -675,15 +693,18 @@ class DocCameraApp {
   }
 
   updateZoomTransform() {
-    const wrapper = document.getElementById('zoomWrapper');
-    if (!wrapper) return;
     const z = this.state.zoom;
-    if (z === 1) {
-      wrapper.style.transform = '';
-    } else {
-      wrapper.style.transform = `scale(${z})`;
+    const wrappers = ['cameraZoomWrapper', 'zoomWrapper'];
+    for (const id of wrappers) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (z === 1) {
+        el.style.transform = '';
+      } else {
+        el.style.transform = `scale(${z})`;
+      }
+      el.dataset.zoom = z;
     }
-    wrapper.dataset.zoom = z;
   }
 
   showZoomIndicator() {
